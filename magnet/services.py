@@ -6,7 +6,7 @@ from google.genai import types
 from datetime import datetime, timedelta
 import json
 import re
-from typing import Optional, Iterator
+from typing import Optional, Iterator, Tuple
 
 from config import GOOGLE_API_KEY, GEMINI_MODEL_NAME, SYSTEM_PROMPT, DEFAULT_MEETING_DURATION, TIME_STEP
 from models import Meeting, LLMResponse
@@ -77,11 +77,12 @@ class GeminiService:
         except Exception as e:
             return LLMResponse(action="error", error=f"LLM 처리 중 오류가 발생했습니다: {str(e)}")
 
-    def process_prompt_stream(self, prompt: str) -> Iterator[str]:
-        """프롬프트 처리 (streaming)"""
+    def process_prompt_stream_with_action(self, prompt: str) -> tuple[Optional[dict], Iterator[str]]:
+        """프롬프트 처리 (action 분리 + response 스트리밍)"""
         if not self.client:
-            yield "Google GenAI 클라이언트가 초기화되지 않았습니다."
-            return
+            def error_generator():
+                yield "Google GenAI 클라이언트가 초기화되지 않았습니다."
+            return None, error_generator()
 
         try:
             full_prompt = SYSTEM_PROMPT.format(
@@ -89,15 +90,52 @@ class GeminiService:
             ) + f"\n\n사용자 입력: {prompt}"
 
             # Google GenAI 스트리밍 API 호출
+            full_response = ""
             for chunk in self.client.models.generate_content_stream(
                 model=GEMINI_MODEL_NAME,
                 contents=full_prompt
             ):
                 if chunk.text:
-                    yield chunk.text
+                    full_response += chunk.text
+
+            # ACTION과 RESPONSE 분리
+            action_data = None
+            response_text = ""
+
+            if "ACTION:" in full_response and "RESPONSE:" in full_response:
+                parts = full_response.split("RESPONSE:")
+                action_part = parts[0].replace("ACTION:", "").strip()
+                response_text = parts[1].strip()
+
+                # ACTION JSON 파싱
+                try:
+                    json_text = self._extract_json(action_part)
+                    if json_text:
+                        action_data = json.loads(json_text)
+                except json.JSONDecodeError:
+                    pass
+            else:
+                # 구분자가 없으면 전체를 response로 처리
+                response_text = full_response
+
+            # RESPONSE 부분을 단어별로 스트리밍
+            def response_generator():
+                import time
+                if response_text:
+                    words = response_text.split()
+                    for word in words:
+                        yield word + " "
+                        time.sleep(0.05)  # 타이핑 효과
+                else:
+                    yield "응답을 처리했습니다."
+
+            return action_data, response_generator()
 
         except Exception as e:
-            yield f"LLM 처리 중 오류가 발생했습니다: {str(e)}"
+            def error_generator():
+                yield f"LLM 처리 중 오류가 발생했습니다: {str(e)}"
+
+            return None, error_generator()
     
     def _extract_json(self, text: str) -> Optional[str]:
         """텍스트에서 JSON 블록 추출"""

@@ -73,7 +73,7 @@ class MeetingBookingApp:
             st.rerun()
 
     def _process_ai_prompt_stream(self, prompt: str):
-        """AI 프롬프트 처리 (스트리밍)"""
+        """AI 프롬프트 처리 (action 분리 + response 스트리밍)"""
         gemini_service = self.session_manager.get_gemini_service()
 
         # Gemini 서비스 초기화 확인
@@ -87,49 +87,74 @@ class MeetingBookingApp:
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # AI 응답 스트리밍
+        # AI 응답 처리
         with st.chat_message("assistant"):
+            # 1단계: ACTION 처리 (st.status 사용)
+            with st.status("Processing...", expanded=False) as status:
+                try:
+                    # 안전한 언패킹
+                    result = gemini_service.process_prompt_stream_with_action(prompt)
+                    if result and len(result) == 2:
+                        action_data, response_generator = result
+                    else:
+                        status.update(label="❌ 응답 처리 오류", state="error")
+                        st.error("AI 응답 처리 중 오류가 발생했습니다.")
+                        return
+
+                    if action_data:
+                        status.update(label="회의 정보 업데이트 중...", state="running")
+
+                        # ACTION 데이터로 회의 정보 업데이트
+                        if action_data.get("action") == "update" and "updates" in action_data:
+                            from models import LLMResponse
+                            llm_response = LLMResponse(
+                                action="update",
+                                updates=action_data["updates"],
+                                message="회의 정보가 업데이트되었습니다."
+                            )
+
+                            current_meeting = self.session_manager.get_current_meeting()
+                            updated_meeting = MeetingService.update_meeting_from_llm_response(
+                                current_meeting, llm_response
+                            )
+                            self.session_manager.set_current_meeting(updated_meeting)
+
+                            status.update(label="✅ 회의 정보 업데이트 완료", state="complete")
+                        else:
+                            status.update(label="✅ 요청 처리 완료", state="complete")
+                    else:
+                        status.update(label="✅ 응답 준비 완료", state="complete")
+
+                except Exception as e:
+                    status.update(label=f"❌ 처리 중 오류: {str(e)}", state="error")
+                    return
+
+            # 2단계: RESPONSE 스트리밍
             full_response = ""
             message_placeholder = st.empty()
 
             try:
-                for chunk in gemini_service.process_prompt_stream(prompt):
+                for chunk in response_generator:
                     full_response += chunk
                     message_placeholder.markdown(full_response + "▌")  # 커서 효과
 
                 message_placeholder.markdown(full_response)  # 최종 응답
 
-                # 채팅 히스토리에 추가
+                # 채팅 히스토리에 추가 (응답 부분만)
                 self.session_manager.add_chat_message(prompt, full_response)
 
-                # JSON 파싱 시도 및 회의 정보 업데이트
-                self._try_update_meeting_from_response(full_response, prompt)
+                # 회의 정보가 업데이트된 경우 rerun
+                if action_data and action_data.get("action") == "update":
+                    st.rerun()
 
             except Exception as e:
-                error_message = f"AI 처리 중 오류가 발생했습니다: {str(e)}"
+                error_message = f"응답 스트리밍 중 오류가 발생했습니다: {str(e)}"
                 message_placeholder.markdown(error_message)
                 self.session_manager.add_chat_message(prompt, error_message)
 
     def _try_update_meeting_from_response(self, response: str, prompt: str):
-        """응답에서 JSON을 추출하여 회의 정보 업데이트 시도"""
-        try:
-            json_text = self._extract_json_from_response(response)
-            if json_text:
-                import json
-                result_dict = json.loads(json_text)
-                llm_response = LLMResponse.from_dict(result_dict)
-
-                if llm_response.is_update():
-                    current_meeting = self.session_manager.get_current_meeting()
-                    updated_meeting = MeetingService.update_meeting_from_llm_response(
-                        current_meeting, llm_response
-                    )
-                    self.session_manager.set_current_meeting(updated_meeting)
-                    st.success("회의 정보가 업데이트되었습니다!")
-                    st.rerun()
-        except Exception:
-            # JSON 파싱에 실패해도 무시 (일반 대화로 처리)
-            pass
+        """응답에서 JSON을 추출하여 회의 정보 업데이트 시도 - 더 이상 사용하지 않음"""
+        pass
 
     def _extract_json_from_response(self, text: str) -> Optional[str]:
         """응답에서 JSON 추출"""
