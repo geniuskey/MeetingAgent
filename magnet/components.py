@@ -5,6 +5,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 from streamlit_quill import st_quill
+from typing import Optional
 
 from config import QUILL_TOOLBAR, MAX_MEETINGS_DISPLAY, MAX_CHAT_HISTORY_DISPLAY, CONTENT_PREVIEW_LENGTH
 from models import Meeting, ChatMessage, MeetingStorage, ChatStorage
@@ -13,7 +14,7 @@ from services import GeminiService, MeetingService
 
 class HeaderComponent:
     """헤더 컴포넌트"""
-    
+
     @staticmethod
     def render():
         """헤더 렌더링"""
@@ -27,7 +28,7 @@ class HeaderComponent:
 
 class SidebarLogoComponent:
     """사이드바 로고 컴포넌트"""
-    
+
     @staticmethod
     def render():
         """로고 렌더링"""
@@ -42,95 +43,121 @@ class SidebarLogoComponent:
 
 class MeetingHistoryComponent:
     """회의 내역 컴포넌트"""
-    
+
     def __init__(self, meeting_storage: MeetingStorage):
         self.meeting_storage = meeting_storage
-    
-    def render(self):
-        """회의 내역 렌더링"""
-        st.subheader("📋 이전 회의")
-        
-        meetings = self.meeting_storage.get_recent_meetings(MAX_MEETINGS_DISPLAY)
-        
-        if meetings:
-            for i, meeting in enumerate(meetings):
-                with st.container():
+
+    def render(self) -> Optional[Meeting]:
+        """회의 내역 렌더링 (expander + 카드 방식)"""
+        meetings = self.meeting_storage.get_meetings()
+
+        # expander 제목에 회의 개수 표시
+        expander_title = f"📋 이전 회의 ({len(meetings)}개)" if meetings else "📋 이전 회의"
+
+        with st.expander(expander_title, expanded=False):
+            if meetings:
+                # 최대 4개 회의만 표시
+                displayed_meetings = meetings[:4]
+
+                for i, meeting in enumerate(displayed_meetings):
+                    # 각 회의를 카드 형태로 표시
                     st.markdown(f"""
-                    <div class="meeting-card">
-                        <strong>{meeting.get_truncated_title()}</strong><br>
-                        <small>{meeting.get_formatted_date()}</small>
+                    <div class="meeting-card-expanded">
+                        <div class="meeting-card-header">
+                            <div class="meeting-title">{meeting.get_truncated_title(25)}</div>
+                            <div class="meeting-date-badge">{meeting.start_time.strftime('%m/%d')}</div>
+                        </div>
+                        <div class="meeting-card-content">
+                            <div class="meeting-info-row">
+                                <span class="meeting-icon">🕐</span>
+                                <span>{meeting.start_time.strftime('%H:%M')} - {meeting.end_time.strftime('%H:%M')}</span>
+                            </div>
+                            <div class="meeting-info-row">
+                                <span class="meeting-icon">👥</span>
+                                <span>{meeting.attendees[:30] + '...' if len(meeting.attendees) > 30 else meeting.attendees or '참석자 없음'}</span>
+                            </div>
+                        </div>
                     </div>
                     """, unsafe_allow_html=True)
 
-                    if st.button(f"불러오기", key=f"load_{len(self.meeting_storage.meetings) - 1 - i}"):
+                    # 불러오기 버튼
+                    if st.button(
+                        f"📥 '{meeting.get_truncated_title(15)}' 불러오기",
+                        key=f"load_meeting_exp_{i}",
+                        use_container_width=True,
+                        help=f"'{meeting.title}' 회의를 불러옵니다"
+                    ):
                         return meeting
-        else:
-            st.info("저장된 회의가 없습니다.")
-        
+
+                    # 마지막이 아니면 구분선
+                    if i < len(displayed_meetings) - 1:
+                        st.markdown('<hr class="meeting-separator">', unsafe_allow_html=True)
+
+                # 더 많은 회의가 있는 경우 안내
+                if len(meetings) > 4:
+                    st.info(f"💡 총 {len(meetings)}개 회의 중 최근 4개를 표시합니다")
+            else:
+                st.info("저장된 회의가 없습니다.")
+
         return None
 
 
 class AIAssistantComponent:
     """AI 어시스턴트 컴포넌트"""
-    
+
     def __init__(self, gemini_service: GeminiService, chat_storage: ChatStorage):
         self.gemini_service = gemini_service
         self.chat_storage = chat_storage
-    
-    def render(self):
+
+    def render(self) -> dict:
         """AI 어시스턴트 렌더링"""
         st.subheader("🤖 AI 어시스턴트")
-        st.markdown('<div class="prompt-container">', unsafe_allow_html=True)
 
-        prompt = st.text_area(
-            "자연어로 회의를 예약해보세요",
-            placeholder="예: 내일 오후 2시에 김철수, 이영희와 프로젝트 회의 잡아줘",
-            height=100
-        )
+        # 채팅 입력을 먼저 배치 (상단 고정)
+        prompt = st.chat_input("자연어로 회의를 예약해보세요...")
 
-        col1, col2, col3 = st.columns([1, 1, 1])
+        # 채팅 히스토리 표시
+        messages = self.chat_storage.get_recent_messages(MAX_CHAT_HISTORY_DISPLAY)
 
-        with col1:
-            send_clicked = st.button("📤 전송", use_container_width=True)
+        # 채팅 메시지 컨테이너 (스크롤 가능한 영역)
+        chat_container = st.container(height=250)
 
-        with col2:
-            stream_clicked = st.button("🌊 스트림", use_container_width=True)
+        with chat_container:
+            if messages:
+                for chat in messages:
+                    with st.chat_message("user"):
+                        st.markdown(chat.user)
+                    with st.chat_message("assistant"):
+                        st.markdown(chat.assistant)
+            else:
+                with st.chat_message("assistant"):
+                    st.markdown("안녕하세요! 자연어로 회의를 예약해보세요. 예: '내일 오후 2시에 팀 미팅 잡아줘'")
 
-        with col3:
-            clear_clicked = st.button("🗑️ 초기화", use_container_width=True)
-
-        st.markdown('</div>', unsafe_allow_html=True)
+        # 초기화 버튼
+        clear_clicked = st.button("🗑️ 폼 초기화", use_container_width=True)
 
         return {
             'prompt': prompt,
-            'send_clicked': send_clicked,
-            'stream_clicked': stream_clicked,
+            'send_clicked': bool(prompt),
             'clear_clicked': clear_clicked
         }
 
 
 class ChatHistoryComponent:
-    """채팅 히스토리 컴포넌트"""
-    
+    """채팅 히스토리 컴포넌트 - 더 이상 사용하지 않음 (AIAssistantComponent에 통합됨)"""
+
     def __init__(self, chat_storage: ChatStorage):
         self.chat_storage = chat_storage
-    
+
     def render(self):
-        """채팅 히스토리 렌더링"""
-        messages = self.chat_storage.get_recent_messages(MAX_CHAT_HISTORY_DISPLAY)
-        
-        if messages:
-            st.subheader("💬 대화 기록")
-            for chat in messages:
-                st.markdown(f"**사용자:** {chat.user}")
-                st.markdown(f"**AI:** {chat.assistant}")
-                st.markdown("---")
+        """더 이상 사용하지 않음"""
+        pass
 
 
 class MeetingFormComponent:
     """회의 폼 컴포넌트"""
-    
-    def render(self, current_meeting: Meeting):
+
+    def render(self, current_meeting: Meeting) -> Meeting:
         """회의 폼 렌더링"""
         st.subheader("📝 회의 예약")
 
@@ -165,14 +192,14 @@ class MeetingFormComponent:
 
             with time_col1:
                 start_time = st.time_input(
-                    "시작 시간", 
+                    "시작 시간",
                     step=timedelta(minutes=30),
                     value=current_meeting.start_time.time()
                 )
 
             with time_col2:
                 end_time = st.time_input(
-                    "종료 시간", 
+                    "종료 시간",
                     step=timedelta(minutes=30),
                     value=current_meeting.end_time.time()
                 )
@@ -198,11 +225,11 @@ class MeetingFormComponent:
 
 class MeetingActionsComponent:
     """회의 액션 컴포넌트"""
-    
+
     def __init__(self, meeting_storage: MeetingStorage):
         self.meeting_storage = meeting_storage
-    
-    def render(self, current_meeting: Meeting):
+
+    def render(self, current_meeting: Meeting) -> dict:
         """액션 버튼들 렌더링"""
         col5, col6, col7 = st.columns([1, 1, 2])
 
@@ -241,11 +268,11 @@ class MeetingActionsComponent:
             'reset_clicked': reset_clicked,
             'view_list_clicked': view_list_clicked
         }
-    
+
     def _show_meetings_list(self):
         """회의 목록 표시"""
         meetings = self.meeting_storage.get_meetings()
-        
+
         if meetings:
             st.subheader("📋 저장된 회의 목록")
 
@@ -268,7 +295,7 @@ class MeetingActionsComponent:
 
 class UsageGuideComponent:
     """사용법 안내 컴포넌트"""
-    
+
     @staticmethod
     def render():
         """사용법 안내 렌더링"""
@@ -292,7 +319,7 @@ class UsageGuideComponent:
 
 class MessageComponent:
     """메시지 컴포넌트"""
-    
+
     @staticmethod
     def render_success(message: str):
         """성공 메시지 렌더링"""
@@ -301,7 +328,7 @@ class MessageComponent:
             ✅ {message}
         </div>
         """, unsafe_allow_html=True)
-    
+
     @staticmethod
     def render_error(message: str):
         """에러 메시지 렌더링"""
@@ -310,7 +337,7 @@ class MessageComponent:
             ❌ {message}
         </div>
         """, unsafe_allow_html=True)
-    
+
     @staticmethod
     def render_info(message: str):
         """정보 메시지 렌더링"""

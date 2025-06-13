@@ -112,31 +112,156 @@ def get_css_styles():
         font-size: 0.9rem;
     }
 
-    /* 회의 카드 */
-    .meeting-card {
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-        padding: 1rem;
+    /* Expander 내부 회의 카드 스타일링 */
+    .css-1d391kg .meeting-card-expanded {
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+        border: 1px solid rgba(255, 255, 255, 0.2);
         border-radius: 12px;
-        border-left: 4px solid #667eea;
+        padding: 1rem;
         margin-bottom: 0.8rem;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        cursor: pointer;
+        transition: all 0.3s ease;
     }
 
-    .meeting-card:hover {
+    .css-1d391kg .meeting-card-expanded:hover {
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.08) 100%);
+        border-color: rgba(102, 126, 234, 0.5);
         transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
     }
 
-    /* 프롬프트 컨테이너 */
-    .prompt-container {
-        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-        border: 1px solid rgba(102, 126, 234, 0.2);
-        border-radius: 15px;
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    .css-1d391kg .meeting-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.8rem;
+    }
+
+    .css-1d391kg .meeting-title {
+        color: white;
+        font-size: 1rem;
+        font-weight: 600;
+        line-height: 1.2;
+        flex: 1;
+        margin-right: 0.5rem;
+    }
+
+    .css-1d391kg .meeting-date-badge {
+        color: white;
+        font-size: 0.75rem;
+        font-weight: 500;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 0.3rem 0.6rem;
+        border-radius: 8px;
+        white-space: nowrap;
+    }
+
+    .css-1d391kg .meeting-card-content {
+        space-y: 0.4rem;
+    }
+
+    .css-1d391kg .meeting-info-row {
+        display: flex;
+        align-items: center;
+        color: rgba(255, 255, 255, 0.85);
+        font-size: 0.85rem;
+        margin-bottom: 0.4rem;
+    }
+
+    .css-1d391kg .meeting-icon {
+        margin-right: 0.5rem;
+        width: 1.2rem;
+        text-align: center;
+    }
+
+    .css-1d391kg .meeting-separator {
+        border: none;
+        height: 1px;
+        background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.3) 50%, transparent 100%);
+        margin: 1rem 0;
+    }
+
+    /* Expander 스타일 개선 */
+    .css-1d391kg .streamlit-expanderHeader {
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 10px !important;
+        color: white !important;
+        font-weight: 600;
+        padding: 0.8rem 1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .css-1d391kg .streamlit-expanderHeader:hover {
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.08) 100%);
+        border-color: rgba(102, 126, 234, 0.4);
+    }
+
+    .css-1d391kg .streamlit-expanderContent {
+        border: none !important;
+        background: transparent;
+    }
+
+    /* 채팅 입력 고정 위치 스타일 */
+    .css-1d391kg [data-testid="stChatInput"] {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: linear-gradient(180deg, #2c3e50 0%, #34495e 100%);
+        padding: 0.5rem 0;
+        margin-bottom: 1rem;
+        border-radius: 10px;
+    }
+
+    .css-1d391kg [data-testid="stChatInput"] input {
+        background: rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 8px;
+        color: white;
+        font-size: 0.9rem;
+    }
+
+    .css-1d391kg [data-testid="stChatInput"] input::placeholder {
+        color: rgba(255, 255, 255, 0.6);
+    }
+
+    .css-1d391kg [data-testid="stChatInput"] input:focus {
+        border-color: #667eea !important;
+        box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.3) !important;
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* 사이드바 채팅 컨테이너 */
+    .css-1d391kg .stContainer {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* 채팅 메시지 스타일 사이드바용 */
+    .css-1d391kg [data-testid="stChatMessage"] {
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* 채팅 입력 사이드바용 */
+    .css-1d391kg [data-testid="stChatInput"] input {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        color: white;
+    }
+
+    .css-1d391kg [data-testid="stChatInput"] input::placeholder {
+        color: rgba(255, 255, 255, 0.6);
+    }
+
+    .css-1d391kg [data-testid="stChatInput"] input:focus {
+        border-color: #667eea !important;
+        box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.3) !important;
     }
 
     /* 예약 폼 */

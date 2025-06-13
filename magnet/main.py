@@ -62,47 +62,15 @@ class MeetingBookingApp:
             # AI 어시스턴트 액션 처리
             self._handle_ai_assistant_actions(ai_result)
 
-            # 채팅 히스토리
-            chat_history = ChatHistoryComponent(
-                self.session_manager.get_chat_storage()
-            )
-            chat_history.render()
-
     def _handle_ai_assistant_actions(self, ai_result):
         """AI 어시스턴트 액션 처리"""
-        if ai_result['send_clicked'] and ai_result['prompt'].strip():
-            self._process_ai_prompt(ai_result['prompt'])
-
-        if ai_result['stream_clicked'] and ai_result['prompt'].strip():
+        if ai_result['send_clicked'] and ai_result['prompt']:
             self._process_ai_prompt_stream(ai_result['prompt'])
 
         if ai_result['clear_clicked']:
             self.session_manager.reset_current_meeting()
             MessageComponent.render_success("폼이 초기화되었습니다!")
             st.rerun()
-
-    def _process_ai_prompt(self, prompt: str):
-        """AI 프롬프트 처리 (일반)"""
-        gemini_service = self.session_manager.get_gemini_service()
-
-        # Gemini 서비스 초기화 확인
-        if not gemini_service.is_initialized:
-            success, message = gemini_service.initialize()
-            if not success:
-                MessageComponent.render_error(message)
-                return
-
-        with st.spinner("AI가 처리 중..."):
-            llm_response = gemini_service.process_prompt(prompt)
-
-        # 채팅 히스토리에 추가
-        self.session_manager.add_chat_message(
-            prompt,
-            llm_response.message or "처리 완료"
-        )
-
-        # 결과 처리
-        self._handle_llm_response(llm_response, prompt)
 
     def _process_ai_prompt_stream(self, prompt: str):
         """AI 프롬프트 처리 (스트리밍)"""
@@ -115,31 +83,53 @@ class MeetingBookingApp:
                 MessageComponent.render_error(message)
                 return
 
-        # 스트리밍 응답을 위한 플레이스홀더
-        response_placeholder = st.empty()
-        full_response = ""
+        # 사용자 메시지를 먼저 채팅에 추가
+        with st.chat_message("user"):
+            st.markdown(prompt)
 
-        with st.spinner("AI가 스트리밍 중..."):
-            for chunk in gemini_service.process_prompt_stream(prompt):
-                full_response += chunk
-                response_placeholder.markdown(f"**AI 응답:** {full_response}")
+        # AI 응답 스트리밍
+        with st.chat_message("assistant"):
+            full_response = ""
+            message_placeholder = st.empty()
 
-        # 채팅 히스토리에 추가
-        self.session_manager.add_chat_message(prompt, full_response)
+            try:
+                for chunk in gemini_service.process_prompt_stream(prompt):
+                    full_response += chunk
+                    message_placeholder.markdown(full_response + "▌")  # 커서 효과
 
-        # JSON 파싱 시도
+                message_placeholder.markdown(full_response)  # 최종 응답
+
+                # 채팅 히스토리에 추가
+                self.session_manager.add_chat_message(prompt, full_response)
+
+                # JSON 파싱 시도 및 회의 정보 업데이트
+                self._try_update_meeting_from_response(full_response, prompt)
+
+            except Exception as e:
+                error_message = f"AI 처리 중 오류가 발생했습니다: {str(e)}"
+                message_placeholder.markdown(error_message)
+                self.session_manager.add_chat_message(prompt, error_message)
+
+    def _try_update_meeting_from_response(self, response: str, prompt: str):
+        """응답에서 JSON을 추출하여 회의 정보 업데이트 시도"""
         try:
-            # 응답에서 JSON 추출
-            json_text = self._extract_json_from_response(full_response)
+            json_text = self._extract_json_from_response(response)
             if json_text:
                 import json
                 result_dict = json.loads(json_text)
                 llm_response = LLMResponse.from_dict(result_dict)
-                self._handle_llm_response(llm_response, prompt)
-            else:
-                MessageComponent.render_info(full_response)
-        except Exception as e:
-            MessageComponent.render_info(full_response)
+
+                if llm_response.is_update():
+                    current_meeting = self.session_manager.get_current_meeting()
+                    updated_meeting = MeetingService.update_meeting_from_llm_response(
+                        current_meeting, llm_response
+                    )
+                    self.session_manager.set_current_meeting(updated_meeting)
+                    st.success("회의 정보가 업데이트되었습니다!")
+                    st.rerun()
+        except Exception:
+            # JSON 파싱에 실패해도 무시 (일반 대화로 처리)
+            pass
 
     def _extract_json_from_response(self, text: str) -> Optional[str]:
         """응답에서 JSON 추출"""
@@ -158,24 +148,8 @@ class MeetingBookingApp:
         return None
 
     def _handle_llm_response(self, llm_response: LLMResponse, prompt: str):
-        """LLM 응답 처리"""
-        if llm_response.is_error():
-            MessageComponent.render_error(llm_response.error)
-        elif llm_response.is_update():
-            # 현재 회의 정보 업데이트
-            current_meeting = self.session_manager.get_current_meeting()
-            updated_meeting = MeetingService.update_meeting_from_llm_response(
-                current_meeting, llm_response
-            )
-            self.session_manager.set_current_meeting(updated_meeting)
-            MessageComponent.render_success(
-                llm_response.message or "회의 정보가 업데이트되었습니다!"
-            )
-            st.rerun()
-        else:
-            MessageComponent.render_info(
-                llm_response.message or "요청을 처리했습니다."
-            )
+        """LLM 응답 처리 - 더 이상 사용하지 않음"""
+        pass
     
     def create_main_content(self):
         """메인 컨텐츠 생성"""
