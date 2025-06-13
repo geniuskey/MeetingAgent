@@ -20,8 +20,7 @@ class HeaderComponent:
         """헤더 렌더링"""
         st.markdown("""
         <div class="main-header">
-            <h1>📅 AI-Powered Meeting Booking System</h1>
-            <p>자연어로 간편하게 회의를 예약하세요</p>
+            <h1>📝 회의 예약</h1>
         </div>
         """, unsafe_allow_html=True)
 
@@ -204,11 +203,12 @@ class MeetingFormComponent:
                     value=current_meeting.end_time.time()
                 )
 
-        # 회의 내용
+        # 회의 내용 - key를 동적으로 변경하여 강제 업데이트
+        content_key = f"meeting_content_{abs(hash(current_meeting.content))}"
         content = st_quill(
-            value=current_meeting.content,
+            value=current_meeting.content if current_meeting.content else "",
             placeholder="회의 안건, 준비사항, 기타 내용을 입력하세요...",
-            key="meeting_content",
+            key=content_key,
             toolbar=QUILL_TOOLBAR,
             html=True,
         )
@@ -219,7 +219,7 @@ class MeetingFormComponent:
             start_time=datetime.combine(start_date, start_time),
             end_time=datetime.combine(start_date, end_time),
             attendees=attendees,
-            content=content
+            content=content if content else ""
         )
 
 

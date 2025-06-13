@@ -64,30 +64,38 @@ class SessionManager:
 
         for meeting in sample_meetings:
             st.session_state.meeting_storage.add_meeting(meeting)
-    
+
     def get_meeting_storage(self) -> MeetingStorage:
         """회의 저장소 반환"""
         return st.session_state.meeting_storage
-    
+
     def get_chat_storage(self) -> ChatStorage:
         """채팅 저장소 반환"""
         return st.session_state.chat_storage
-    
+
     def get_current_meeting(self) -> Meeting:
         """현재 회의 반환"""
         return st.session_state.current_meeting
-    
+
     def set_current_meeting(self, meeting: Meeting):
         """현재 회의 설정"""
         st.session_state.current_meeting = meeting
-    
+        # st_quill 강제 업데이트를 위해 관련 키 삭제
+        keys_to_delete = [key for key in st.session_state.keys() if key.startswith('meeting_content')]
+        for key in keys_to_delete:
+            del st.session_state[key]
+
     def get_gemini_service(self) -> GeminiService:
         """Gemini 서비스 반환"""
         return st.session_state.gemini_service
-    
+
     def reset_current_meeting(self):
         """현재 회의 초기화"""
         st.session_state.current_meeting = MeetingService.create_default_meeting()
+        # st_quill 강제 업데이트를 위해 관련 키 삭제
+        keys_to_delete = [key for key in st.session_state.keys() if key.startswith('meeting_content')]
+        for key in keys_to_delete:
+            del st.session_state[key]
     
     def add_chat_message(self, user_message: str, assistant_message: str):
         """채팅 메시지 추가"""
