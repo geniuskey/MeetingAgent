@@ -134,6 +134,9 @@ class MeetingBookingApp:
                     message="회의 정보가 업데이트되었습니다."
                 )
 
+                # 변경사항 분석을 위한 이전 상태 저장
+                previous_meeting = current_meeting
+
                 # 회의 정보 즉시 업데이트
                 updated_meeting = MeetingService.update_meeting_from_llm_response(
                     current_meeting, llm_response
@@ -143,14 +146,77 @@ class MeetingBookingApp:
                 # 하이라이트 효과 적용
                 self._save_highlighted_fields(action_data.get("updates", {}))
 
-            # 채팅에 응답 추가
-            self.session_manager.add_chat_message(prompt, full_response)
+                # 변경사항 상세 분석 및 메시지 개선
+                enhanced_response = self._enhance_response_with_changes(
+                    full_response, previous_meeting, updated_meeting, action_data.get("updates", {})
+                )
+
+                # 개선된 응답으로 채팅에 추가
+                self.session_manager.add_chat_message(prompt, enhanced_response)
+            else:
+                # 일반 채팅
+                self.session_manager.add_chat_message(prompt, full_response)
+
             st.rerun()
 
         except Exception as e:
             error_message = f"AI 처리 중 오류가 발생했습니다: {str(e)}"
             self.session_manager.add_chat_message(prompt, error_message)
             st.rerun()
+
+    def _enhance_response_with_changes(self, original_response: str, previous_meeting: Meeting,
+                                     updated_meeting: Meeting, updates: dict) -> str:
+        """변경사항을 분석하여 응답을 개선"""
+        changes = []
+
+        # 제목 변경 확인
+        if 'title' in updates and previous_meeting.title != updated_meeting.title:
+            if previous_meeting.title:
+                changes.append(f"• 제목: '{previous_meeting.title}' → '{updated_meeting.title}'")
+            else:
+                changes.append(f"• 제목: '{updated_meeting.title}'로 설정")
+
+        # 시간 변경 확인
+        if ('start_time' in updates or 'end_time' in updates):
+            prev_start = previous_meeting.start_time.strftime("%m/%d %H:%M")
+            prev_end = previous_meeting.end_time.strftime("%H:%M")
+            new_start = updated_meeting.start_time.strftime("%m/%d %H:%M")
+            new_end = updated_meeting.end_time.strftime("%H:%M")
+
+            if (previous_meeting.start_time != updated_meeting.start_time or
+                previous_meeting.end_time != updated_meeting.end_time):
+                changes.append(f"• 시간: {prev_start}~{prev_end} → {new_start}~{new_end}")
+
+        # 참석자 변경 확인
+        if 'attendees' in updates:
+            prev_count = len(previous_meeting.attendees)
+            new_count = len(updated_meeting.attendees)
+
+            if new_count > prev_count:
+                # 새로 추가된 참석자 찾기
+                prev_ids = {att.employee_id for att in previous_meeting.attendees}
+                new_attendees = [att for att in updated_meeting.attendees if att.employee_id not in prev_ids]
+                if new_attendees:
+                    names = ", ".join([att.name for att in new_attendees])
+                    changes.append(f"• 참석자 추가: {names}")
+
+        # 내용 변경 확인
+        if 'content' in updates and previous_meeting.content != updated_meeting.content:
+            if updated_meeting.content:
+                changes.append("• 회의 안건 업데이트")
+
+        # 변경사항이 있으면 원래 응답을 개선
+        if changes:
+            change_summary = "\n".join(changes)
+            if "✅" not in original_response:
+                # AI 응답에 체크마크가 없으면 추가
+                enhanced = f"✅ 회의 정보를 업데이트했습니다:\n{change_summary}"
+            else:
+                # 이미 체크마크가 있으면 변경사항 추가
+                enhanced = f"{original_response}\n\n**변경사항:**\n{change_summary}"
+            return enhanced
+
+        return original_response
 
     def _save_highlighted_fields(self, updates: dict):
         """변경된 필드들을 하이라이트용으로 저장"""
