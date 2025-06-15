@@ -13,8 +13,23 @@ class MockEmployeeAPI:
         self.employees = self._generate_sample_employees()
 
     def _generate_sample_employees(self) -> List[Employee]:
-        """샘플 임직원 데이터 생성"""
+        """샘플 임직원 데이터 생성 (30명, 역할 포함)"""
         teams = ["개발팀", "기획팀", "디자인팀", "마케팅팀", "영업팀", "인사팀", "재무팀"]
+        roles = ["사장", "부사장", "상무", "Master", "PL", "그룹장", "TL", "파트장", ""]
+
+        # 역할별 인원 분배
+        role_distribution = {
+            "사장": 1,
+            "부사장": 1,
+            "상무": 2,
+            "Master": 2,
+            "PL": 3,
+            "그룹장": 3,
+            "TL": 5,
+            "파트장": 5,
+            "": 8  # 일반 실무자
+        }
+
         names = [
             "김철수", "이영희", "박민수", "정지영", "최윤호", "한소영", "임대현", "조미영",
             "강준호", "윤서연", "장동혁", "서지은", "김태원", "박수진", "이현우", "정예린",
@@ -23,14 +38,33 @@ class MockEmployeeAPI:
         ]
 
         employees = []
-        for i, name in enumerate(names):
-            team = random.choice(teams)
-            employees.append(Employee(
-                id=f"emp_{i + 1:03d}",
-                name=name,
-                team=team,
-                email=f"{name.lower()}@company.com"
-            ))
+        name_idx = 0
+
+        # 역할별로 임직원 생성
+        for role, count in role_distribution.items():
+            for _ in range(count):
+                if name_idx >= len(names):
+                    break
+
+                name = names[name_idx]
+                team = random.choice(teams)
+
+                # 임원급은 특정 팀에 배치
+                if role in ["사장", "부사장"]:
+                    team = "경영진"
+                elif role == "상무":
+                    team = random.choice(["개발팀", "영업팀"])
+                elif role == "Master":
+                    team = random.choice(["개발팀", "기획팀"])
+
+                employees.append(Employee(
+                    id=f"emp_{name_idx + 1:03d}",
+                    name=name,
+                    team=team,
+                    role=role,
+                    email=f"{name.lower()}@company.com"
+                ))
+                name_idx += 1
 
         return employees
 
@@ -56,6 +90,18 @@ class MockEmployeeAPI:
     def get_all_teams(self) -> List[str]:
         """전체 팀 목록 조회"""
         return list(set(emp.team for emp in self.employees))
+
+    def get_employees_by_role(self, role: str) -> List[Employee]:
+        """역할별 임직원 조회"""
+        return [emp for emp in self.employees if emp.role == role]
+
+    def get_executives(self) -> List[Employee]:
+        """임원급 임직원 조회"""
+        return [emp for emp in self.employees if emp.is_executive()]
+
+    def get_leaders(self) -> List[Employee]:
+        """리더급 임직원 조회"""
+        return [emp for emp in self.employees if emp.is_leader()]
 
 
 # 싱글톤 인스턴스
