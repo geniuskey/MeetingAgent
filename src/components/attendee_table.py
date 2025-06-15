@@ -36,8 +36,8 @@ class AttendeeManagementComponent:
 
             with col1:
                 search_query = st.text_input(
-                    "이름 또는 팀 검색",
-                    placeholder="김철수 또는 개발팀",
+                    "이름 또는 Knox ID",
+                    placeholder="김삼성 또는 samsung.kim",
                     key="attendee_search"
                 )
 
@@ -67,7 +67,7 @@ class AttendeeManagementComponent:
 
         if results:
             st.write("**검색 결과:**")
-            for i, emp_data in enumerate(results[:5]):  # 최대 5개만 표시
+            for i, emp_data in enumerate(results):
                 col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
 
                 with col1:
