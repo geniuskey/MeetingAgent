@@ -36,8 +36,8 @@ class AttendeeManagementComponent:
 
             with col1:
                 search_query = st.text_input(
-                    "이름 또는 Knox ID",
-                    placeholder="김삼성 또는 samsung.kim",
+                    "이름, Knox ID 또는 개발팀",
+                    placeholder="김삼성, samsung.kim 또는 Pixel개발팀",
                     key="attendee_search"
                 )
 
