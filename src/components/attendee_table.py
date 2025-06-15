@@ -138,6 +138,11 @@ class AttendeeManagementComponent:
                         help="삭제할 참석자를 선택하세요",
                         default=False,
                     ),
+                    "이름": st.column_config.TextColumn(
+                        "이름",
+                        disabled=True,
+                        required=True,
+                    ),
                     "역할": st.column_config.SelectboxColumn(
                         "역할",
                         help="참석자 역할을 선택하세요",
